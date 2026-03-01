@@ -1,0 +1,173 @@
+Question 1.1
+All of the possible printed outputs are:
+
+1122
+2211
+1212
+2121
+1221
+2112
+
+Question 1.2
+All of the possible outputs are:
+1122
+2211
+
+Question 1.3
+
+<Code Start>
+
+class mysem {
+  public:
+    mysem(uint32_t init_value){ 
+      counter.store(init_value, std::memory_order_seq_cst); 
+    };
+    
+    void acquire(){
+      int current = counter.load(std::memory_order_seq_cst);
+    
+      while (current == 0) {
+        counter.wait(current); 
+        current = counter.load(std::memory_order_seq_cst);
+      }
+
+      counter.fetch_sub(1, std::memory_order_seq_cst);
+    };
+    
+    void release(){ 
+      counter.fetch_add(1, std::memory_order_seq_cst);
+      counter.notify_one();
+    };
+  
+  private:
+    std::atomic<uint32_t> counter;
+};
+
+<Code End>
+
+Question 1.4
+
+<Code Start>
+
+void acquire(){
+  uint32_t* counter_ptr = reinterpret_cast<uint32_t*>(&counter);
+
+  while (true) {
+    for(int i=0; i < 100; i++) {
+
+      uint32_t current = counter.load(std::memory_order_seq_cst);
+      
+      if(current > 0) {
+        counter.fetch_sub(1, std::memory_order_seq_cst);
+        return;
+      }
+    }
+
+
+    syscall(SYS_futex, counter_ptr, FUTEX_WAIT, 0, nullptr, nullptr, 0);
+  }
+};
+
+void release(){
+  uint32_t* counter_ptr = reinterpret_cast<uint32_t*>(&counter);
+
+  counter.fetch_add(1, std::memory_order_seq_cst);
+
+  // Futex wake up one thread
+  syscall(SYS_futex, counter_ptr, FUTEX_WAKE, 1, nullptr, nullptr, 0);
+
+};
+
+<Code End>
+
+Question 1.5
+
+To ensure that no unnecessary syscalls are being made, a second atomic counter could be implemented that denotes the number of threads waiting for a resource to be released. This would then allow for the conditional check of 'if(waiting_threads > 0)' then run the syscall since we can be sure that there will be a thread to wake up.
+
+
+Question 2.1
+
+Step 1: Calculate the total average message sizes for uploads and downloads.
+
+Uploads:
+
+GET_request_size = 1 Byte (Identifier) + 512 Bytes (Key) = 513 Bytes
+SET_request_size = 1 Byte (Identifier) + 512 Bytes (Key) + 1024 Bytes (Value) = 1537 Bytes
+
+Total_avg_upload_size = GET_request_size * 0.9 + SET_request_size * 0.1
+                      = 513 * 0.9 + 1537 * 0.1 
+                      = 615.4 Bytes/Operation
+
+Downloads:
+
+GET_response_size = 1024 Bytes (Value)
+SET_response_size = 1 Byte (ACK)
+
+Total_avg_upload_size = GET_response_size * 0.9 + SET_response_size * 0.1
+                      = 1024 * 0.9 + 1 * 0.1 
+                      = 921.7 Bytes/Operation
+
+Step 2: Convert 10Gbps to Bytes and determine if downloads or uploads will be the limiting factor.
+
+10Gbps = 1.25 Gigabytes/second
+       = 1.25 * 10^9 Bytes/second
+
+As calculated in step 1, the limiting factor for the fully-duplexed network card will be downloads, since it will saturate the network card upload bandwidth faster than with uploads.
+
+Step 3: Calculate Maximum Total Throughput
+
+Max_Total_Throughput = (1.25 * 10^9 Bytes/second) / Total_avg_upload_size
+                     = (1.25 * 10^9) / 921.7
+                     = 1,356,189.65 Operations/second
+
+
+Questions 2.2:
+
+Step 1: Convert all variables into similar units.
+
+total_requests_per_second = 130,000 requests/second
+
+GET_request_latency = 200 * 10^-6 seconds
+SET_request_latency = 500 * 10^-6 seconds
+
+Assuming that the ratio for requests is still 90% GETs and 10% SETs, the request distribution will be:
+
+GET_request_rate = total_requests_per_second * 0.9
+                  = 130,000 * 0.9
+                  = 117,000 requests/second
+
+
+SET_request_rate = total_requests_per_second * 0.1
+                  = 130,000 * 0.1
+                  = 13,000 requests/second
+
+Step 2: Calculate the work 1 CPU can do in 1 second for each request type
+
+CPU_GET_work = 1 / GET_request_latency
+             = 1 / (200 * 10^-6)
+             = 5000 GET requests per second
+
+CPU_SET_work = 1 / SET_request_latency 
+             = 1 / (500 * 10^-6)
+             = 2000 SET requests per second
+
+
+Step 3: Calculate total number of CPUs required to serve the incoming requests.
+
+GET_CPU_count = GET_request_rate / CPU_GET_work
+              = 117,000 / 5000
+              = 23.4 CPUs 
+
+SET_CPU_count = SET_request_rate / CPU_SET_work
+              = 13,000 / 2000
+              = 6.5 CPUs
+
+Total_CPUs_Required = GET_CPU_count + SET_CPU_count
+                    = 23.4 + 6.5
+                    = 29.9 CPUs
+                    = 30 CPUs // Rounded up as you can't have 0.9 of a CPU
+
+Question 2.3:
+
+
+
