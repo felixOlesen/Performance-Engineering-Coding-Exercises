@@ -169,5 +169,16 @@ Total_CPUs_Required = GET_CPU_count + SET_CPU_count
 
 Question 2.3:
 
+Experiment 1: 1000 req/seq, 100% GETs
 
+1000 requests per second would be considered a very light load that could be handled easily by 1 CPU for both the lock-free and lock-containing implementations. The overhead due to any locking from the shared lock would be negligibly small, allowing for nearly identical latencies in comparison to the ideal, lock-free implementation. This shows why the average latencies for the ideal and lock implementations are 200 micro seconds.
+
+Experiment 2: 100000 req/seq, 100% GETs
+
+The lock implementation features a slightly longer latency of 207 micro seconds which demonstrates the overhead due to the shared locking mechanism incurred by acquiring and releasing resources, incrementing and decrementing the internal counter of the lock. The additional latency is more apparent due to the increase in traffic by a factor of 100, requiring multiple CPUs to support and incurring more overhead due to locking, in spite of the shared lock allowing for concurrent reads. The ideal implementation would remain at its latency average of 200 micro seconds under this workload since it is lock-free.
+
+
+Experiment 3: 100000 req/seq, 50% GETs, 50% SETs
+
+In this case, the lock-free implementation would have significantly lower latency than the lock implementation. This would be caused by the inclusion of the 50,000 SET operations per second, which require exclusive locks. This incurs longer latencies due to keeping exclusive access to a resource, blocking reads and writes from other threads. This would block GET operations and other SET operations from acquiring resources until the current thread is done with it, increasing the number of waiting threads at any given time.
 
